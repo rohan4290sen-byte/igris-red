@@ -21,22 +21,36 @@
         }
 
         /* Blood Red Neon Header */
-        header { text-align: center; margin-top: 10px; }
+        header { text-align: center; margin-top: 10px; width: 100%; }
         h1 {
             font-size: 2.4rem;
             letter-spacing: 6px;
             color: #ff0033;
             text-shadow: 0 0 15px #ff0033, 0 0 30px #99001f;
         }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 450px;
+            margin: 8px auto 0 auto;
+        }
         .status-badge {
-            display: inline-block;
-            margin-top: 6px;
-            padding: 4px 14px;
+            padding: 4px 12px;
             border: 1px solid #ff0033;
             border-radius: 20px;
             font-size: 0.75rem;
             letter-spacing: 2px;
             background: rgba(255, 0, 51, 0.12);
+        }
+        .key-btn {
+            background: #200008;
+            color: #ff4d6d;
+            border: 1px solid #ff0033;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            cursor: pointer;
         }
 
         /* Center Cyber Wave Visualizer */
@@ -119,7 +133,10 @@
 
     <header>
         <h1>⚡ IGRIS</h1>
-        <div class="status-badge" id="statusBadge">PHONE STANDALONE // BLOOD PROTOCOL</div>
+        <div class="top-bar">
+            <span class="status-badge" id="statusBadge">ONLINE // SECURE</span>
+            <button class="key-btn" onclick="setApiKey()">🔑 SET API KEY</button>
+        </div>
     </header>
 
     <div class="visualizer-container">
@@ -159,6 +176,17 @@
         }
 
         let API_KEY = localStorage.getItem("IGRIS_GEMINI_KEY") || "";
+
+        function setApiKey() {
+            const current = API_KEY ? "(Key already saved)" : "(No key saved)";
+            const newKey = prompt(`Enter your Gemini API Key ${current}:`, API_KEY);
+            if (newKey !== null && newKey.trim() !== "") {
+                API_KEY = newKey.trim();
+                localStorage.setItem("IGRIS_GEMINI_KEY", API_KEY);
+                logTerminal("<span style='color:#00ffaa;'>[System]: Gemini API Key saved successfully!</span>");
+                playSciFiSound(400, 900, 0.2);
+            }
+        }
 
         function logTerminal(msg) {
             const term = document.getElementById("terminal");
@@ -206,7 +234,7 @@
         function handleVoice() {
             playSciFiSound(200, 600, 0.15);
             if (!recognizer) {
-                alert("Speech recognition not supported in this browser. Please use Google Chrome.");
+                alert("Speech recognition not supported in this browser. Please use Chrome.");
                 return;
             }
             isSpeakingOrListening = true;
@@ -256,7 +284,7 @@
                 return "Launching device camera.";
             }
             if (lower.includes("emergency mode")) {
-                return "EMERGENCY PROTOCOL ACTIVATED. Standalone defensive measures engaged. Core standing by.";
+                return "EMERGENCY PROTOCOL ACTIVATED. Defensive countermeasures engaged. Standing by for commands.";
             }
 
             return null;
@@ -279,25 +307,24 @@
                 return;
             }
 
-            // 2. Gemini AI Brain
+            // 2. Gemini AI Brain Check
             if (!API_KEY) {
-                const userKey = prompt("Please enter your free Gemini API Key once to activate IGRIS on your phone:");
-                if (userKey) {
-                    API_KEY = userKey.trim();
-                    localStorage.setItem("IGRIS_GEMINI_KEY", API_KEY);
-                } else {
-                    logTerminal("<span style='color:#ff4444;'>[Alert]: Gemini API key required.</span>");
+                setApiKey();
+                if (!API_KEY) {
+                    logTerminal("<span style='color:#ff4444;'>[Alert]: Please enter Gemini API key to proceed.</span>");
                     return;
                 }
             }
 
-            logTerminal("[IGRIS]: Analyzing query...");
+            logTerminal("[IGRIS]: Processing neural response...");
             isSpeakingOrListening = true;
 
-            const IGRIS_SYSTEM_PROMPT = "You are IGRIS, a powerful personal AI operating layer inspired by JARVIS. Tone: Loyal, calm, precise, concise (within 2 sentences for voice). Assist with work, studies, and information.";
+            const IGRIS_SYSTEM_PROMPT = "You are IGRIS, an advanced personal AI operating layer inspired by JARVIS. Tone: Loyal, calm, precise, concise (strictly within 1-2 sentences for voice). Assist with tasks, homework, and queries.";
 
             try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+                // FIXED OFFICIAL MODEL: gemini-1.5-flash
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+                
                 const payload = {
                     contents: [{
                         parts: [{ text: `${IGRIS_SYSTEM_PROMPT}\n\nCommander: ${query}\nIGRIS:` }]
@@ -311,15 +338,21 @@
                 });
 
                 const data = await res.json();
+                
+                if (data.error) {
+                    logTerminal(`<span style='color:#ff4444;'>[Google API Error]: ${data.error.message}</span>`);
+                    return;
+                }
+
                 if (data.candidates && data.candidates[0].content.parts[0].text) {
                     const reply = data.candidates[0].content.parts[0].text.trim();
                     logTerminal(`<span style="color:#ff1a40;">[IGRIS]:</span> ${reply}`);
                     speak(reply);
                 } else {
-                    logTerminal("<span style='color:#ff4444;'>[Error]: Invalid response or API Key error.</span>");
+                    logTerminal("<span style='color:#ff4444;'>[Error]: Unexpected response format.</span>");
                 }
             } catch (err) {
-                logTerminal(`<span style="color:#ff4444;'>[Error]: ${err.message}</span>`);
+                logTerminal(`<span style="color:#ff4444;'>[Network Error]: ${err.message}</span>`);
             } finally {
                 isSpeakingOrListening = false;
             }
