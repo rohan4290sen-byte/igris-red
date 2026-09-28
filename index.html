@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IGRIS Red Commander</title>
+    <title>IGRIS Phone Commander</title>
     <meta name="theme-color" content="#070002">
     <meta name="mobile-web-app-capable" content="yes">
     <style>
@@ -43,7 +43,7 @@
         .visualizer-container {
             width: 100%;
             max-width: 400px;
-            height: 160px;
+            height: 150px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -93,10 +93,7 @@
             transition: 0.2s;
         }
         .mic-btn:active { transform: scale(0.97); }
-        .server-bar {
-            display: flex;
-            gap: 8px;
-        }
+        .input-row { display: flex; gap: 8px; }
         input {
             flex: 1;
             padding: 12px;
@@ -104,10 +101,10 @@
             border: 1px solid #ff003355;
             border-radius: 6px;
             color: #fff;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             outline: none;
         }
-        .link-btn {
+        .send-btn {
             padding: 10px 18px;
             background: #30000a;
             color: #ff1a40;
@@ -122,7 +119,7 @@
 
     <header>
         <h1>⚡ IGRIS</h1>
-        <div class="status-badge" id="connStatus">ONLINE // BLOOD PROTOCOL</div>
+        <div class="status-badge" id="statusBadge">PHONE STANDALONE // BLOOD PROTOCOL</div>
     </header>
 
     <div class="visualizer-container">
@@ -130,15 +127,15 @@
     </div>
 
     <div class="terminal" id="terminal">
-        [IGRIS CORE]: Initialized.<br>
-        Awaiting authorized voice instructions.
+        [IGRIS MOBILE OS]: Core activated.<br>
+        Direct phone link established. Tap Activate to speak.
     </div>
 
     <div class="controls">
         <button class="mic-btn" id="micBtn" onclick="handleVoice()">🎙️ ACTIVATE IGRIS</button>
-        <div class="server-bar">
-            <input type="text" id="serverUrl" placeholder="Laptop Server URL (e.g. http://192.168.1.8:8000)">
-            <button class="link-btn" onclick="saveServer()">LINK</button>
+        <div class="input-row">
+            <input type="text" id="userInput" placeholder="Ask IGRIS or type command..." onkeydown="if(event.key==='Enter') executeCommand()">
+            <button class="send-btn" onclick="executeCommand()">SEND</button>
         </div>
     </div>
 
@@ -161,16 +158,7 @@
             } catch(e) {}
         }
 
-        // Server Storage
-        let SERVER_URL = localStorage.getItem("IGRIS_SERVER") || "";
-        document.getElementById("serverUrl").value = SERVER_URL;
-
-        function saveServer() {
-            SERVER_URL = document.getElementById("serverUrl").value.trim();
-            localStorage.setItem("IGRIS_SERVER", SERVER_URL);
-            logTerminal("<span style='color:#00ffaa;'>[System]: Server address linked: " + SERVER_URL + "</span>");
-            playSciFiSound(300, 800, 0.2);
-        }
+        let API_KEY = localStorage.getItem("IGRIS_GEMINI_KEY") || "";
 
         function logTerminal(msg) {
             const term = document.getElementById("terminal");
@@ -211,14 +199,14 @@
         }
         drawWave();
 
-        // Speech Recognition
+        // Speech Recognition Setup
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognizer = SpeechRec ? new SpeechRec() : null;
 
         function handleVoice() {
             playSciFiSound(200, 600, 0.15);
             if (!recognizer) {
-                alert("Speech recognition not supported in this browser. Please use Chrome.");
+                alert("Speech recognition not supported in this browser. Please use Google Chrome.");
                 return;
             }
             isSpeakingOrListening = true;
@@ -230,8 +218,8 @@
             recognizer.onresult = async (event) => {
                 const userCmd = event.results[0][0].transcript;
                 document.getElementById("micBtn").innerText = "🎙️ ACTIVATE IGRIS";
-                logTerminal(`<span style="color:#fff;">[Commander]:</span> ${userCmd}`);
-                sendCommandToServer(userCmd);
+                document.getElementById("userInput").value = userCmd;
+                executeCommand();
             };
             recognizer.onerror = () => {
                 isSpeakingOrListening = false;
@@ -239,27 +227,99 @@
             };
         }
 
-        // Send to Laptop Server
-        async function sendCommandToServer(cmd) {
-            if (!SERVER_URL) {
-                logTerminal("<span style='color:#ff4444;'>[Alert]: Please enter your Laptop Server URL below.</span>");
-                isSpeakingOrListening = false;
+        // Direct Phone Hardware Commands
+        async function handlePhoneActions(cmd) {
+            const lower = cmd.toLowerCase();
+
+            // 1. Phone Battery Check
+            if (lower.includes("battery") || lower.includes("charge")) {
+                if ('getBattery' in navigator) {
+                    const battery = await navigator.getBattery();
+                    const level = Math.round(battery.level * 100);
+                    const charging = battery.charging ? "currently charging" : "discharging";
+                    return `Commander, phone battery is at ${level} percent and ${charging}.`;
+                }
+                return "Unable to access phone battery telemetry.";
+            }
+
+            // 2. Open Apps on Phone
+            if (lower.includes("open youtube")) {
+                window.open("https://youtube.com", "_blank");
+                return "Opening YouTube for you, Commander.";
+            }
+            if (lower.includes("open whatsapp")) {
+                window.open("whatsapp://", "_blank");
+                return "Launching WhatsApp.";
+            }
+            if (lower.includes("open camera")) {
+                window.open("intent:#Intent;action=android.media.action.IMAGE_CAPTURE;end", "_blank");
+                return "Launching device camera.";
+            }
+            if (lower.includes("emergency mode")) {
+                return "EMERGENCY PROTOCOL ACTIVATED. Standalone defensive measures engaged. Core standing by.";
+            }
+
+            return null;
+        }
+
+        // Execute Command
+        async function executeCommand() {
+            const input = document.getElementById("userInput");
+            const query = input.value.trim();
+            if (!query) return;
+
+            input.value = "";
+            logTerminal(`<br><span style="color:#ffffff;">[Commander]:</span> ${query}`);
+
+            // 1. Check Phone Hardware Actions first
+            const phoneActionReply = await handlePhoneActions(query);
+            if (phoneActionReply) {
+                logTerminal(`<span style="color:#ff1a40;">[IGRIS]:</span> ${phoneActionReply}`);
+                speak(phoneActionReply);
                 return;
             }
 
-            logTerminal("[IGRIS]: Analyzing request...");
+            // 2. Gemini AI Brain
+            if (!API_KEY) {
+                const userKey = prompt("Please enter your free Gemini API Key once to activate IGRIS on your phone:");
+                if (userKey) {
+                    API_KEY = userKey.trim();
+                    localStorage.setItem("IGRIS_GEMINI_KEY", API_KEY);
+                } else {
+                    logTerminal("<span style='color:#ff4444;'>[Alert]: Gemini API key required.</span>");
+                    return;
+                }
+            }
+
+            logTerminal("[IGRIS]: Analyzing query...");
+            isSpeakingOrListening = true;
+
+            const IGRIS_SYSTEM_PROMPT = "You are IGRIS, a powerful personal AI operating layer inspired by JARVIS. Tone: Loyal, calm, precise, concise (within 2 sentences for voice). Assist with work, studies, and information.";
+
             try {
-                const res = await fetch(`${SERVER_URL}/api/igris`, {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+                const payload = {
+                    contents: [{
+                        parts: [{ text: `${IGRIS_SYSTEM_PROMPT}\n\nCommander: ${query}\nIGRIS:` }]
+                    }]
+                };
+
+                const res = await fetch(url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ command: cmd })
+                    body: JSON.stringify(payload)
                 });
+
                 const data = await res.json();
-                const reply = data.response;
-                logTerminal(`<span style="color:#ff1a40;">[IGRIS]:</span> ${reply}`);
-                speak(reply);
+                if (data.candidates && data.candidates[0].content.parts[0].text) {
+                    const reply = data.candidates[0].content.parts[0].text.trim();
+                    logTerminal(`<span style="color:#ff1a40;">[IGRIS]:</span> ${reply}`);
+                    speak(reply);
+                } else {
+                    logTerminal("<span style='color:#ff4444;'>[Error]: Invalid response or API Key error.</span>");
+                }
             } catch (err) {
-                logTerminal("<span style='color:#ff4444;'>[Link Error]: Could not reach IGRIS server. Make sure server is running on laptop.</span>");
+                logTerminal(`<span style="color:#ff4444;'>[Error]: ${err.message}</span>`);
             } finally {
                 isSpeakingOrListening = false;
             }
